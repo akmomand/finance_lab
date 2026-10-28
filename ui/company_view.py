@@ -6,7 +6,9 @@ from typing import Any
 
 from data.company import get_company_overview
 from data.scorecard import get_fundamental_scorecard
+from ui.earnings_view import render_earnings_analysis
 from ui.fair_value_view import render_fair_value
+from ui.peers_view import render_peer_comparison
 from ui.ratios_view import render_key_ratio_trends
 from ui.trends_view import render_historical_trends
 from utils.formatting import (
@@ -18,8 +20,6 @@ from utils.formatting import (
 
 
 SECTION_STUBS = [
-    ("6. Competitor / Industry Comparison", "coming in Step 8"),
-    ("7. Earnings Analysis", "coming in Step 8"),
     ("8. Analyst Sentiment", "coming in Step 9"),
     ("9. Ownership", "coming in Step 9"),
     ("10. Dividend Analysis", "coming in Step 9"),
@@ -230,6 +230,12 @@ def render_company_page(st, ticker: str) -> None:
 
     with st.expander("5. Fair Value", expanded=False):
         render_fair_value(st, symbol)
+
+    with st.expander("6. Competitor / Industry Comparison", expanded=False):
+        render_peer_comparison(st, symbol)
+
+    with st.expander("7. Earnings Analysis", expanded=False):
+        render_earnings_analysis(st, symbol)
 
     for title, note in SECTION_STUBS:
         with st.expander(title, expanded=False):

@@ -35,4 +35,6 @@ streamlit run app.py
 - **Historical trends** — last 8 quarters of growth, margins, balance sheet, and cash flow (Plotly)
 - **Key ratio trends** — profitability, liquidity, solvency, and valuation over time
 - **Fair value** — simple FCF DCF, Graham number, and P/E vs history
-- **Deeper company sections** — peers, earnings, ownership, dividends coming next
+- **Peers** — editable peer tickers with suggested defaults; compare P/E, ROE, margins
+- **Earnings** — last ~8 quarters estimate vs actual and surprise trends
+- **Deeper company sections** — analyst sentiment, ownership, dividends coming next
