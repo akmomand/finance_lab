@@ -33,4 +33,5 @@ streamlit run app.py
 - **Company overview** — quote, size, 52-week range, beta, yield, and business summary via yfinance
 - **Fundamental scorecard** — ROE, ROIC, margins, leverage, liquidity with green / yellow / red bands
 - **Historical trends** — last 8 quarters of growth, margins, balance sheet, and cash flow (Plotly)
-- **Deeper company sections** — ratio trends, valuation, peers, etc. coming in later steps
+- **Key ratio trends** — profitability, liquidity, solvency, and valuation over time
+- **Deeper company sections** — fair value, peers, earnings, etc. coming in later steps
