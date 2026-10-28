@@ -15,12 +15,10 @@ from utils.formatting import format_number, format_percent
 def _fmt_level(name: str, value: float | None, unit: str) -> str:
     if value is None:
         return "—"
-    if name == "unemployment":
-        return format_percent(value, decimals=1) if abs(value) > 1 else f"{value:.1f}%"
+    if name == "unemployment" or unit == "%":
+        return f"{value:.1f}%"
     if name == "gdp":
         return f"${format_number(value, decimals=0)}B"
-    if unit == "%":
-        return f"{value:.1f}%"
     return format_number(value, decimals=1)
 
 
