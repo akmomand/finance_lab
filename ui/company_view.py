@@ -181,21 +181,22 @@ def _render_scorecard(st, card: dict[str, Any]) -> None:
         with m3:
             st.markdown(_health_badge(label, color, bg), unsafe_allow_html=True)
 
-    with st.expander("Threshold reference"):
-        for row in card.get("rows") or []:
-            direction = "≥" if row.get("higher_is_better", True) else "≤"
-            g = row.get("green")
-            y = row.get("yellow")
-            if row.get("format") == "percent":
-                g_s = format_percent(g, decimals=0)
-                y_s = format_percent(y, decimals=0)
-            else:
-                g_s = format_number(g, decimals=2)
-                y_s = format_number(y, decimals=2)
-            st.markdown(
-                f"- **{row.get('metric')}**: strong {direction} {g_s}, "
-                f"watch {direction} {y_s}, else concern"
-            )
+    # Note: cannot nest st.expander inside the section expander
+    st.markdown("##### Threshold reference")
+    for row in card.get("rows") or []:
+        direction = "≥" if row.get("higher_is_better", True) else "≤"
+        g = row.get("green")
+        y = row.get("yellow")
+        if row.get("format") == "percent":
+            g_s = format_percent(g, decimals=0)
+            y_s = format_percent(y, decimals=0)
+        else:
+            g_s = format_number(g, decimals=2)
+            y_s = format_number(y, decimals=2)
+        st.caption(
+            f"{row.get('metric')}: strong {direction} {g_s}, "
+            f"watch {direction} {y_s}, else concern"
+        )
 
 
 def render_company_page(st, ticker: str) -> None:
