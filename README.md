@@ -26,3 +26,8 @@ From the project root:
 ```bash
 streamlit run app.py
 ```
+
+## Features (in progress)
+
+- **Macro dashboard** — CPI, PCE inflation, GDP, unemployment, manufacturing employment (PMI proxy) via FRED
+- **Company research** — overview and deeper sections coming in later steps

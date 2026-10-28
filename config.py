@@ -28,7 +28,7 @@ FRED_SERIES = {
     "gdp": "GDP",                # Gross Domestic Product
     "pce": "PCEPI",              # PCE Price Index (inflation)
     "unemployment": "UNRATE",    # Unemployment Rate
-    "manufacturing_pmi": "MANEMP",  # Manufacturing employment (PMI proxy on FRED)
+    "manufacturing_pmi": "MANEMP",  # Mfg payrolls — free PMI-cycle proxy (ISM PMI is proprietary)
 }
 
 FRED_API_KEY = os.getenv("FRED_API_KEY", "")
