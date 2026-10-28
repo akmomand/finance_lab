@@ -6,10 +6,13 @@ from typing import Any
 
 from data.company import get_company_overview
 from data.scorecard import get_fundamental_scorecard
+from ui.dividends_view import render_dividend_analysis
 from ui.earnings_view import render_earnings_analysis
 from ui.fair_value_view import render_fair_value
+from ui.ownership_view import render_ownership
 from ui.peers_view import render_peer_comparison
 from ui.ratios_view import render_key_ratio_trends
+from ui.sentiment_view import render_analyst_sentiment
 from ui.trends_view import render_historical_trends
 from utils.formatting import (
     format_currency,
@@ -17,13 +20,6 @@ from utils.formatting import (
     format_number,
     format_percent,
 )
-
-
-SECTION_STUBS = [
-    ("8. Analyst Sentiment", "coming in Step 9"),
-    ("9. Ownership", "coming in Step 9"),
-    ("10. Dividend Analysis", "coming in Step 9"),
-]
 
 _HEALTH_STYLE = {
     "strong": ("Strong", "#0f7b3a", "#e6f6ec"),
@@ -237,6 +233,11 @@ def render_company_page(st, ticker: str) -> None:
     with st.expander("7. Earnings Analysis", expanded=False):
         render_earnings_analysis(st, symbol)
 
-    for title, note in SECTION_STUBS:
-        with st.expander(title, expanded=False):
-            st.caption(note)
+    with st.expander("8. Analyst Sentiment", expanded=False):
+        render_analyst_sentiment(st, symbol)
+
+    with st.expander("9. Ownership", expanded=False):
+        render_ownership(st, symbol)
+
+    with st.expander("10. Dividend Analysis", expanded=False):
+        render_dividend_analysis(st, symbol)

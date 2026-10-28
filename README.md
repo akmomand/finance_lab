@@ -37,4 +37,6 @@ streamlit run app.py
 - **Fair value** — simple FCF DCF, Graham number, and P/E vs history
 - **Peers** — editable peer tickers with suggested defaults; compare P/E, ROE, margins
 - **Earnings** — last ~8 quarters estimate vs actual and surprise trends
-- **Deeper company sections** — analyst sentiment, ownership, dividends coming next
+- **Analyst sentiment** — rating counts (when available) and average price target
+- **Ownership** — institutional holders and recent insider transactions
+- **Dividends** — yield, payout, growth, history, consecutive increase streak
