@@ -32,4 +32,5 @@ streamlit run app.py
 - **Macro dashboard** — CPI, PCE inflation, GDP, unemployment, manufacturing employment (PMI proxy) via FRED
 - **Company overview** — quote, size, 52-week range, beta, yield, and business summary via yfinance
 - **Fundamental scorecard** — ROE, ROIC, margins, leverage, liquidity with green / yellow / red bands
-- **Deeper company sections** — trends, valuation, peers, etc. coming in later steps
+- **Historical trends** — last 8 quarters of growth, margins, balance sheet, and cash flow (Plotly)
+- **Deeper company sections** — ratio trends, valuation, peers, etc. coming in later steps

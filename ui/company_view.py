@@ -6,6 +6,7 @@ from typing import Any
 
 from data.company import get_company_overview
 from data.scorecard import get_fundamental_scorecard
+from ui.trends_view import render_historical_trends
 from utils.formatting import (
     format_currency,
     format_large_number,
@@ -15,7 +16,6 @@ from utils.formatting import (
 
 
 SECTION_STUBS = [
-    ("3. Historical Trend Analysis", "coming in Step 5"),
     ("4. Key Ratio Trends", "coming in Step 6"),
     ("5. Fair Value", "coming in Step 7"),
     ("6. Competitor / Industry Comparison", "coming in Step 8"),
@@ -220,6 +220,9 @@ def render_company_page(st, ticker: str) -> None:
             st.error(card.get("error") or "Failed to load scorecard.")
         else:
             _render_scorecard(st, card)
+
+    with st.expander("3. Historical Trend Analysis", expanded=False):
+        render_historical_trends(st, symbol)
 
     for title, note in SECTION_STUBS:
         with st.expander(title, expanded=False):
