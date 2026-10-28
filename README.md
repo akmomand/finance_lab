@@ -1,6 +1,8 @@
 # Finance Lab
 
-Streamlit app for exploring macro indicators (FRED) and company fundamentals (yfinance).
+Streamlit app for US macro indicators (FRED) and public-company research (yfinance).
+
+> Educational tool only — not investment advice.
 
 ## Setup
 
@@ -27,16 +29,48 @@ From the project root:
 streamlit run app.py
 ```
 
-## Features (in progress)
+Open the local URL Streamlit prints (usually http://localhost:8501).
 
-- **Macro dashboard** — CPI, PCE inflation, GDP, unemployment, manufacturing employment (PMI proxy) via FRED
-- **Company overview** — quote, size, 52-week range, beta, yield, and business summary via yfinance
-- **Fundamental scorecard** — ROE, ROIC, margins, leverage, liquidity with green / yellow / red bands
-- **Historical trends** — last 8 quarters of growth, margins, balance sheet, and cash flow (Plotly)
-- **Key ratio trends** — profitability, liquidity, solvency, and valuation over time
-- **Fair value** — simple FCF DCF, Graham number, and P/E vs history
-- **Peers** — editable peer tickers with suggested defaults; compare P/E, ROE, margins
-- **Earnings** — last ~8 quarters estimate vs actual and surprise trends
-- **Analyst sentiment** — rating counts (when available) and average price target
-- **Ownership** — institutional holders and recent insider transactions
-- **Dividends** — yield, payout, growth, history, consecutive increase streak
+### Sidebar tips
+
+- **Clear data cache** — wipe cached Yahoo/FRED responses after rate limits or stale data
+- Company mode loads **one section at a time** (section dropdown) to reduce Yahoo request volume
+
+## Features
+
+### Macro
+
+- CPI, PCE inflation, GDP, unemployment
+- Manufacturing employment as a free PMI-cycle proxy (`MANEMP` on FRED)
+
+### Company research
+
+1. **Overview** — quote, size, 52-week range, beta, yield, business summary  
+2. **Fundamental scorecard** — ROE, ROIC, margins, leverage, liquidity (green / yellow / red)  
+3. **Historical trends** — last ~8 quarters of growth, margins, balance sheet, cash flow  
+4. **Key ratio trends** — profitability, liquidity, solvency, valuation  
+5. **Fair value** — FCF DCF, Graham number, P/E vs history  
+6. **Peers** — editable peer list with suggested defaults  
+7. **Earnings** — estimate vs actual and surprise trends  
+8. **Analyst sentiment** — ratings (when available) and price targets  
+9. **Ownership** — institutions and insider activity  
+10. **Dividends** — yield, payout, growth, history, increase streak  
+
+## Troubleshooting
+
+| Issue | What to try |
+|-------|-------------|
+| Company data fails for every ticker | Yahoo rate limit — wait ~1 minute, click **Clear data cache**, retry |
+| Macro page empty | Set `FRED_API_KEY` in `.env` and restart Streamlit |
+| Some peer / earnings rows blank | Coverage varies by ticker on free Yahoo data |
+| Nested expander errors | Upgrade Streamlit; company sections use a selectbox (not nested expanders) |
+
+## Project layout
+
+```
+app.py              # Streamlit entry
+config.py           # constants, FRED series, scorecard bands
+data/               # fetchers (macro, company, scorecard, trends, …)
+ui/                 # Streamlit views
+utils/              # formatting helpers
+```

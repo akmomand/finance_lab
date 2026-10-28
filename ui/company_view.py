@@ -1,4 +1,4 @@
-"""Company analysis view — Overview + Fundamental Scorecard + stubs."""
+"""Company analysis view — section navigator loads one section at a time."""
 
 from __future__ import annotations
 
@@ -20,6 +20,19 @@ from utils.formatting import (
     format_number,
     format_percent,
 )
+
+SECTIONS = [
+    "1. Company Overview",
+    "2. Fundamental Scorecard",
+    "3. Historical Trend Analysis",
+    "4. Key Ratio Trends",
+    "5. Fair Value",
+    "6. Competitor / Industry Comparison",
+    "7. Earnings Analysis",
+    "8. Analyst Sentiment",
+    "9. Ownership",
+    "10. Dividend Analysis",
+]
 
 _HEALTH_STYLE = {
     "strong": ("Strong", "#0f7b3a", "#e6f6ec"),
@@ -49,6 +62,9 @@ def _health_badge(label: str, color: str, bg: str) -> str:
 
 
 def _render_overview(st, ov: dict[str, Any]) -> None:
+    if ov.get("warning"):
+        st.warning(ov["warning"])
+
     currency = ov.get("currency") or "USD"
     name = ov.get("name") or ov.get("symbol")
     symbol = ov.get("symbol")
@@ -158,7 +174,6 @@ def _render_scorecard(st, card: dict[str, Any]) -> None:
         "ROIC is approximated from annual statements when available."
     )
 
-    # Header
     h1, h2, h3 = st.columns([2, 1, 1])
     h1.markdown("**Metric**")
     h2.markdown("**Current**")
@@ -177,7 +192,6 @@ def _render_scorecard(st, card: dict[str, Any]) -> None:
         with m3:
             st.markdown(_health_badge(label, color, bg), unsafe_allow_html=True)
 
-    # Note: cannot nest st.expander inside the section expander
     st.markdown("##### Threshold reference")
     for row in card.get("rows") or []:
         direction = "≥" if row.get("higher_is_better", True) else "≤"
@@ -202,42 +216,51 @@ def render_company_page(st, ticker: str) -> None:
         st.warning("Enter a ticker in the sidebar.")
         return
 
-    with st.spinner(f"Loading {symbol}…"):
-        ov = get_company_overview(symbol)
-        card = get_fundamental_scorecard(symbol)
+    section = st.selectbox(
+        "Section",
+        SECTIONS,
+        index=0,
+        key=f"company_section_{symbol}",
+        help="Only the selected section loads data — reduces Yahoo rate limits.",
+    )
+    st.caption(f"Ticker **{symbol}** · loading: {section}")
 
-    with st.expander("1. Company Overview", expanded=True):
+    if section.startswith("1."):
+        with st.spinner(f"Loading overview for {symbol}…"):
+            ov = get_company_overview(symbol)
         if not ov.get("ok"):
             st.error(ov.get("error") or "Failed to load overview.")
         else:
             _render_overview(st, ov)
 
-    with st.expander("2. Fundamental Scorecard", expanded=True):
+    elif section.startswith("2."):
+        with st.spinner(f"Loading scorecard for {symbol}…"):
+            card = get_fundamental_scorecard(symbol)
         if not card.get("ok"):
             st.error(card.get("error") or "Failed to load scorecard.")
         else:
             _render_scorecard(st, card)
 
-    with st.expander("3. Historical Trend Analysis", expanded=False):
+    elif section.startswith("3."):
         render_historical_trends(st, symbol)
 
-    with st.expander("4. Key Ratio Trends", expanded=False):
+    elif section.startswith("4."):
         render_key_ratio_trends(st, symbol)
 
-    with st.expander("5. Fair Value", expanded=False):
+    elif section.startswith("5."):
         render_fair_value(st, symbol)
 
-    with st.expander("6. Competitor / Industry Comparison", expanded=False):
+    elif section.startswith("6."):
         render_peer_comparison(st, symbol)
 
-    with st.expander("7. Earnings Analysis", expanded=False):
+    elif section.startswith("7."):
         render_earnings_analysis(st, symbol)
 
-    with st.expander("8. Analyst Sentiment", expanded=False):
+    elif section.startswith("8."):
         render_analyst_sentiment(st, symbol)
 
-    with st.expander("9. Ownership", expanded=False):
+    elif section.startswith("9."):
         render_ownership(st, symbol)
 
-    with st.expander("10. Dividend Analysis", expanded=False):
+    elif section.startswith("10."):
         render_dividend_analysis(st, symbol)
