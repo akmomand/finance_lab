@@ -30,4 +30,5 @@ streamlit run app.py
 ## Features (in progress)
 
 - **Macro dashboard** — CPI, PCE inflation, GDP, unemployment, manufacturing employment (PMI proxy) via FRED
-- **Company research** — overview and deeper sections coming in later steps
+- **Company overview** — quote, size, 52-week range, beta, yield, and business summary via yfinance
+- **Deeper company sections** — scorecard, trends, valuation, peers, etc. coming in later steps
