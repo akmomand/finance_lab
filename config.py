@@ -15,11 +15,58 @@ PAGE_CONFIG = {
 
 DEFAULT_TICKER = "AAPL"
 
-# Scorecard thresholds — filled in later steps (green / yellow / red bands)
-SCORECARD_THRESHOLDS: dict[str, dict] = {
-    "green": {},
-    "yellow": {},
-    "red": {},
+# Fundamental scorecard bands (general screens — not industry-adjusted).
+# higher_is_better: green if value >= green, yellow if >= yellow, else red
+# lower_is_better:  green if value <= green, yellow if <= yellow, else red
+SCORECARD_METRICS: dict[str, dict] = {
+    "roe": {
+        "label": "ROE",
+        "format": "percent",
+        "higher_is_better": True,
+        "green": 0.15,
+        "yellow": 0.08,
+        "help": "Return on Equity — net income / shareholder equity",
+    },
+    "roic": {
+        "label": "ROIC",
+        "format": "percent",
+        "higher_is_better": True,
+        "green": 0.12,
+        "yellow": 0.06,
+        "help": "Return on Invested Capital — approx. NOPAT / (equity + debt − cash)",
+    },
+    "gross_margin": {
+        "label": "Gross Margin",
+        "format": "percent",
+        "higher_is_better": True,
+        "green": 0.40,
+        "yellow": 0.20,
+        "help": "Gross profit / revenue",
+    },
+    "debt_to_equity": {
+        "label": "Debt / Equity",
+        "format": "ratio",
+        "higher_is_better": False,
+        "green": 0.50,
+        "yellow": 1.50,
+        "help": "Total debt / shareholder equity (lower is safer)",
+    },
+    "current_ratio": {
+        "label": "Current Ratio",
+        "format": "ratio",
+        "higher_is_better": True,
+        "green": 1.50,
+        "yellow": 1.00,
+        "help": "Current assets / current liabilities",
+    },
+    "fcf_margin": {
+        "label": "FCF Margin",
+        "format": "percent",
+        "higher_is_better": True,
+        "green": 0.10,
+        "yellow": 0.03,
+        "help": "Free cash flow / revenue",
+    },
 }
 
 # FRED series IDs

@@ -1,10 +1,11 @@
-"""Company analysis view — Overview (Step 3) + stubs for later sections."""
+"""Company analysis view — Overview + Fundamental Scorecard + stubs."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from data.company import get_company_overview
+from data.scorecard import get_fundamental_scorecard
 from utils.formatting import (
     format_currency,
     format_large_number,
@@ -13,9 +14,7 @@ from utils.formatting import (
 )
 
 
-# Remaining roadmap sections (Overview rendered fully below)
 SECTION_STUBS = [
-    ("2. Fundamental Scorecard", "coming in Step 4"),
     ("3. Historical Trend Analysis", "coming in Step 5"),
     ("4. Key Ratio Trends", "coming in Step 6"),
     ("5. Fair Value", "coming in Step 7"),
@@ -26,9 +25,31 @@ SECTION_STUBS = [
     ("10. Dividend Analysis", "coming in Step 9"),
 ]
 
+_HEALTH_STYLE = {
+    "strong": ("Strong", "#0f7b3a", "#e6f6ec"),
+    "watch": ("Watch", "#a15c00", "#fff6e5"),
+    "concern": ("Concern", "#b42318", "#fdeceb"),
+    "na": ("N/A", "#667085", "#f2f4f7"),
+}
+
 
 def _metric(st, label: str, value: str) -> None:
     st.metric(label, value)
+
+
+def _format_score_value(value: Any, fmt: str) -> str:
+    if value is None:
+        return "—"
+    if fmt == "percent":
+        return format_percent(value, decimals=1)
+    return format_number(value, decimals=2)
+
+
+def _health_badge(label: str, color: str, bg: str) -> str:
+    return (
+        f'<span style="display:inline-block;padding:0.15rem 0.55rem;border-radius:999px;'
+        f'font-size:0.85rem;font-weight:600;color:{color};background:{bg};">{label}</span>'
+    )
 
 
 def _render_overview(st, ov: dict[str, Any]) -> None:
@@ -43,7 +64,6 @@ def _render_overview(st, ov: dict[str, Any]) -> None:
         + (f" · {ov['country']}" if ov.get("country") else "")
     )
 
-    # Row 1 — identity & size
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         _metric(st, "Ticker", symbol or "—")
@@ -59,7 +79,6 @@ def _render_overview(st, ov: dict[str, Any]) -> None:
             format_large_number(employees) if employees else "—",
         )
 
-    # Row 2 — valuation / quote
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         _metric(st, "Current Price", format_currency(ov.get("price"), currency))
@@ -70,7 +89,6 @@ def _render_overview(st, ov: dict[str, Any]) -> None:
     with c4:
         _metric(st, "Beta", format_number(ov.get("beta"), decimals=2))
 
-    # Row 3 — range & yield
     high = ov.get("fifty_two_week_high")
     low = ov.get("fifty_two_week_low")
     range_str = "—"
@@ -87,7 +105,6 @@ def _render_overview(st, ov: dict[str, Any]) -> None:
     with c4:
         _metric(st, "Dividend Yield", format_percent(ov.get("dividend_yield"), decimals=2))
 
-    # Price vs 52w range bar
     price = ov.get("price")
     if price is not None and high is not None and low is not None and high > low:
         pct = (float(price) - float(low)) / (float(high) - float(low))
@@ -131,6 +148,56 @@ def _render_overview(st, ov: dict[str, Any]) -> None:
         )
 
 
+def _render_scorecard(st, card: dict[str, Any]) -> None:
+    tallies = card.get("tallies") or {}
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Strong", tallies.get("strong", 0))
+    c2.metric("Watch", tallies.get("watch", 0))
+    c3.metric("Concern", tallies.get("concern", 0))
+    c4.metric("N/A", tallies.get("na", 0))
+
+    st.caption(
+        "Bands are general quality screens (not industry-adjusted). "
+        "Green = strong · Yellow = watch · Red = concern. "
+        "ROIC is approximated from annual statements when available."
+    )
+
+    # Header
+    h1, h2, h3 = st.columns([2, 1, 1])
+    h1.markdown("**Metric**")
+    h2.markdown("**Current**")
+    h3.markdown("**Health**")
+
+    for row in card.get("rows") or []:
+        health = row.get("health", "na")
+        label, color, bg = _HEALTH_STYLE.get(health, _HEALTH_STYLE["na"])
+        m1, m2, m3 = st.columns([2, 1, 1])
+        with m1:
+            st.markdown(f"**{row.get('metric', '')}**")
+            if row.get("help"):
+                st.caption(row["help"])
+        with m2:
+            st.markdown(_format_score_value(row.get("value"), row.get("format", "ratio")))
+        with m3:
+            st.markdown(_health_badge(label, color, bg), unsafe_allow_html=True)
+
+    with st.expander("Threshold reference"):
+        for row in card.get("rows") or []:
+            direction = "≥" if row.get("higher_is_better", True) else "≤"
+            g = row.get("green")
+            y = row.get("yellow")
+            if row.get("format") == "percent":
+                g_s = format_percent(g, decimals=0)
+                y_s = format_percent(y, decimals=0)
+            else:
+                g_s = format_number(g, decimals=2)
+                y_s = format_number(y, decimals=2)
+            st.markdown(
+                f"- **{row.get('metric')}**: strong {direction} {g_s}, "
+                f"watch {direction} {y_s}, else concern"
+            )
+
+
 def render_company_page(st, ticker: str) -> None:
     st.header("Company Analysis")
     symbol = (ticker or "").strip().upper()
@@ -140,12 +207,19 @@ def render_company_page(st, ticker: str) -> None:
 
     with st.spinner(f"Loading {symbol}…"):
         ov = get_company_overview(symbol)
+        card = get_fundamental_scorecard(symbol)
 
     with st.expander("1. Company Overview", expanded=True):
         if not ov.get("ok"):
             st.error(ov.get("error") or "Failed to load overview.")
         else:
             _render_overview(st, ov)
+
+    with st.expander("2. Fundamental Scorecard", expanded=True):
+        if not card.get("ok"):
+            st.error(card.get("error") or "Failed to load scorecard.")
+        else:
+            _render_scorecard(st, card)
 
     for title, note in SECTION_STUBS:
         with st.expander(title, expanded=False):
