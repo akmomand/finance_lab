@@ -34,4 +34,5 @@ streamlit run app.py
 - **Fundamental scorecard** — ROE, ROIC, margins, leverage, liquidity with green / yellow / red bands
 - **Historical trends** — last 8 quarters of growth, margins, balance sheet, and cash flow (Plotly)
 - **Key ratio trends** — profitability, liquidity, solvency, and valuation over time
-- **Deeper company sections** — fair value, peers, earnings, etc. coming in later steps
+- **Fair value** — simple FCF DCF, Graham number, and P/E vs history
+- **Deeper company sections** — peers, earnings, ownership, dividends coming next
