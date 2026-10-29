@@ -150,10 +150,6 @@ def _render_overview(st, ov: dict[str, Any]) -> None:
         for row in geo:
             note = f" — {row['note']}" if row.get("note") else ""
             st.write(f"- **{row.get('region', '—')}**{note}")
-        st.caption(
-            "Full regional revenue mix is rarely exposed by free Yahoo data; "
-            "showing domicile when available."
-        )
     else:
         st.caption(
             "Geographic revenue mix is not available via free yfinance for this ticker."

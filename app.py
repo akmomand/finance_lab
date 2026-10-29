@@ -43,4 +43,4 @@ if page == "Macro":
 else:
     render_company_page(st, ticker)
 
-st.caption("Finance Lab · market data via yfinance · macro via FRED · not investment advice")
+st.caption("Finance Lab · market data via yfinance · macro via FRED")
