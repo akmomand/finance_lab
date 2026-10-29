@@ -165,11 +165,11 @@ def get_fundamental_scorecard(ticker: str) -> dict[str, Any]:
         return {"symbol": "", "ok": False, "error": "Enter a ticker symbol.", "rows": []}
 
     info = get_raw_info(symbol)
-    if not info:
+    if not info or (info.get("_error") and info.get("returnOnEquity") is None and info.get("grossMargins") is None):
         return {
             "symbol": symbol,
             "ok": False,
-            "error": "Could not load fundamentals for scorecard.",
+            "error": info.get("_error") or "Could not load fundamentals for scorecard.",
             "rows": [],
         }
 

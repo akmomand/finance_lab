@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
-from data.cache import TTL_SHORT, cached_data
+from data.cache import TTL_MEDIUM, cached_data
+from data.yf_session import make_ticker
 
 
 def get_ticker(ticker: str):
-    """Return a yfinance Ticker object, or None on failure."""
+    """Return a yfinance Ticker object (shared curl_cffi session when available)."""
     try:
-        import yfinance as yf
-
-        return yf.Ticker((ticker or "").strip().upper())
+        return make_ticker(ticker)
     except Exception:
         return None
 
@@ -83,85 +83,8 @@ def _history_price(ticker_obj) -> float | None:
     return None
 
 
-@cached_data(ttl=TTL_SHORT)
-def get_raw_info(ticker: str) -> dict[str, Any]:
-    """
-    Cached company quote/fundamentals payload.
-
-    Always returns a dict. On failure includes `_error` and optionally partial
-    fields from fast_info / history so the UI can still show a quote.
-    Empty failures are short-TTL cached to limit Yahoo hammering, but still
-    surface a clear `_error` (e.g. rate limit).
-    """
-    symbol = (ticker or "").strip().upper()
-    if not symbol:
-        return {"_error": "Enter a ticker symbol."}
-
-    t = get_ticker(symbol)
-    if t is None:
-        return {"_error": "Could not initialize yfinance ticker."}
-
-    info: dict[str, Any] = {}
-    err: str | None = None
-
-    try:
-        raw = t.info
-        if isinstance(raw, dict) and raw:
-            info = dict(raw)
-        elif raw:
-            try:
-                info = dict(raw)
-            except Exception:
-                info = {}
-    except Exception as exc:
-        if _is_rate_limit(exc):
-            err = (
-                "Yahoo Finance rate limit hit. Wait a minute, then use "
-                "**Clear data cache** in the sidebar and retry."
-            )
-        else:
-            err = f"Yahoo quote fetch failed: {type(exc).__name__}"
-
-    # Merge fast_info / last close when `.info` is thin or missing
-    if not info or not (info.get("shortName") or info.get("longName") or info.get("currentPrice")):
-        partial = _fast_info_dict(t)
-        for k, v in partial.items():
-            info.setdefault(k, v)
-        if info.get("currentPrice") is None:
-            px = _history_price(t)
-            if px is not None:
-                info["currentPrice"] = px
-                info["regularMarketPrice"] = px
-
-    if not info:
-        return {
-            "_error": err
-            or "Could not load company data. Check the ticker, wait if rate-limited, then retry."
-        }
-
-    if err:
-        info["_error"] = err
-        info["_partial"] = True
-    return info
-
-
-@cached_data(ttl=TTL_SHORT)
-def get_company_overview(ticker: str) -> dict[str, Any]:
-    """
-    Normalized company overview for the Overview section.
-
-    Includes basics, business summary, and best-effort segment / geo notes.
-    yfinance does not expose structured revenue-segment or geographic breakdowns
-    for most tickers; those fields are filled only when present.
-    """
-    symbol = (ticker or "").strip().upper()
-    if not symbol:
-        return {"symbol": "", "ok": False, "error": "Enter a ticker symbol."}
-
-    info = get_raw_info(symbol)
-    soft_error = info.get("_error")
-    # Treat as hard failure only when we have essentially nothing useful
-    useful = any(
+def _useful(info: dict[str, Any]) -> bool:
+    return any(
         info.get(k) is not None
         for k in (
             "shortName",
@@ -172,7 +95,103 @@ def get_company_overview(ticker: str) -> dict[str, Any]:
             "marketCap",
         )
     )
-    if not useful:
+
+
+def _fetch_info_once(ticker_obj) -> tuple[dict[str, Any], str | None]:
+    """Single attempt: full info, then fast_info / history fallbacks."""
+    info: dict[str, Any] = {}
+    err: str | None = None
+
+    try:
+        raw = ticker_obj.info
+        if isinstance(raw, dict) and raw:
+            info = dict(raw)
+        elif raw:
+            try:
+                info = dict(raw)
+            except Exception:
+                info = {}
+    except Exception as exc:
+        if _is_rate_limit(exc):
+            err = (
+                "Yahoo Finance rate limit hit. Wait a bit, click **Clear data cache**, then retry. "
+                "Also ensure `curl_cffi` is installed (`pip install -U yfinance curl_cffi`)."
+            )
+        else:
+            err = f"Yahoo quote fetch failed: {type(exc).__name__}: {exc}"
+
+    if not _useful(info):
+        partial = _fast_info_dict(ticker_obj)
+        for k, v in partial.items():
+            info.setdefault(k, v)
+        if info.get("currentPrice") is None:
+            px = _history_price(ticker_obj)
+            if px is not None:
+                info["currentPrice"] = px
+                info["regularMarketPrice"] = px
+
+    if err and _useful(info):
+        info["_error"] = err
+        info["_partial"] = True
+    return info, err
+
+
+def _fetch_raw_info_uncached(symbol: str) -> dict[str, Any]:
+    """Fetch with short retries. Raises on hard failure so Streamlit will not cache it."""
+    t = get_ticker(symbol)
+    if t is None:
+        raise RuntimeError("Could not initialize yfinance ticker.")
+
+    last_err: str | None = None
+    for attempt in range(3):
+        info, err = _fetch_info_once(t)
+        last_err = err
+        if _useful(info):
+            return info
+        if attempt < 2:
+            time.sleep(1.5 * (attempt + 1))
+            t = get_ticker(symbol) or t
+
+    raise RuntimeError(
+        last_err
+        or "Could not load company data. Check the ticker, wait if rate-limited, then retry."
+    )
+
+
+@cached_data(ttl=TTL_MEDIUM)
+def _get_raw_info_cached(ticker: str) -> dict[str, Any]:
+    """Cache successful fetches only (exceptions are not cached by Streamlit)."""
+    symbol = (ticker or "").strip().upper()
+    if not symbol:
+        raise ValueError("Enter a ticker symbol.")
+    return _fetch_raw_info_uncached(symbol)
+
+
+def get_raw_info(ticker: str) -> dict[str, Any]:
+    """
+    Company quote/fundamentals payload.
+
+    Successes are cached. Failures return ``{_error: ...}`` and are not cached,
+    so a later retry can succeed after Yahoo rate limits clear.
+    """
+    symbol = (ticker or "").strip().upper()
+    if not symbol:
+        return {"_error": "Enter a ticker symbol."}
+    try:
+        return _get_raw_info_cached(symbol)
+    except Exception as exc:
+        return {"_error": str(exc)}
+
+
+def get_company_overview(ticker: str) -> dict[str, Any]:
+    """Normalized company overview for the Overview section."""
+    symbol = (ticker or "").strip().upper()
+    if not symbol:
+        return {"symbol": "", "ok": False, "error": "Enter a ticker symbol."}
+
+    info = get_raw_info(symbol)
+    soft_error = info.get("_error")
+    if not _useful(info):
         return {
             "symbol": symbol,
             "ok": False,
@@ -199,7 +218,7 @@ def get_company_overview(ticker: str) -> dict[str, Any]:
     if div_yield is not None and div_yield > 1:
         div_yield = div_yield / 100.0
 
-    overview: dict[str, Any] = {
+    return {
         "symbol": symbol,
         "ok": True,
         "error": None,
@@ -224,7 +243,6 @@ def get_company_overview(ticker: str) -> dict[str, Any]:
         "revenue_segments": _extract_revenue_segments(info),
         "geographic_exposure": _extract_geographic_exposure(info),
     }
-    return overview
 
 
 def _extract_revenue_segments(info: dict[str, Any]) -> list[dict[str, Any]]:

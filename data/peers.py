@@ -81,8 +81,8 @@ def _normalize_debt_equity(value: float | None) -> float | None:
 
 def _peer_metrics(symbol: str) -> dict[str, Any]:
     info = get_raw_info(symbol) or {}
-    if not info:
-        return {"symbol": symbol, "ok": False}
+    if not info or (info.get("_error") and not info.get("shortName") and not info.get("trailingPE")):
+        return {"symbol": symbol, "ok": False, "error": info.get("_error")}
 
     fcf = _safe_float(info.get("freeCashflow"))
     revenue = _safe_float(info.get("totalRevenue"))

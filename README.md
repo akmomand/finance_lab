@@ -11,6 +11,8 @@ python -m venv .venv
 .venv\Scripts\activate          # Windows
 # source .venv/bin/activate     # macOS / Linux
 pip install -r requirements.txt
+# Important: curl_cffi helps avoid Yahoo rate limits with modern yfinance
+pip install -U "yfinance>=0.2.66" curl_cffi
 ```
 
 Copy `.env.example` to `.env` and set your FRED API key:
@@ -60,7 +62,7 @@ Open the local URL Streamlit prints (usually http://localhost:8501).
 
 | Issue | What to try |
 |-------|-------------|
-| Company data fails for every ticker | Yahoo rate limit — wait ~1 minute, click **Clear data cache**, retry |
+| Company data fails for every ticker | Usually Yahoo rate limiting. Install/upgrade: `pip install -U yfinance curl_cffi`, restart Streamlit, click **Clear data cache**, retry |
 | Macro page empty | Set `FRED_API_KEY` in `.env` and restart Streamlit |
 | Some peer / earnings rows blank | Coverage varies by ticker on free Yahoo data |
 | Nested expander errors | Upgrade Streamlit; company sections use a selectbox (not nested expanders) |

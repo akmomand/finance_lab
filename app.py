@@ -33,8 +33,9 @@ if st.sidebar.button("Clear data cache", help="Clears Streamlit cached Yahoo/FRE
 
 st.sidebar.caption("Data: yfinance · FRED")
 st.sidebar.caption(
-    "If company data fails for every ticker, Yahoo may be rate-limiting. "
-    "Wait ~1 minute, clear cache, then retry."
+    "If company data fails for every ticker: "
+    "`pip install -U yfinance curl_cffi`, restart the app, "
+    "Clear data cache, then retry."
 )
 
 if page == "Macro":
