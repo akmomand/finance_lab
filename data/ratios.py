@@ -84,13 +84,23 @@ def _interest_coverage(ebit: pd.Series, interest: pd.Series) -> pd.Series:
     return (aligned["e"] / aligned["i"]).sort_index()
 
 
+def _ttm_sum(series: pd.Series) -> pd.Series:
+    """Trailing four-quarter sum on a chronologically sorted quarterly series."""
+    if series is None or series.empty:
+        return pd.Series(dtype=float)
+    s = series.dropna().sort_index()
+    if len(s) < 4:
+        return pd.Series(dtype=float)
+    return s.rolling(window=4, min_periods=4).sum().dropna()
+
+
 @cached_data(ttl=TTL_MEDIUM)
 def get_key_ratio_trends(ticker: str) -> dict[str, Any]:
     """
     Build up to 8 quarters of key ratios + a current valuation snapshot.
 
-    Historical valuation (P/E, P/S, P/FCF) uses quarter-end prices when available.
-    Forward P/E, PEG, EV/EBITDA are point-in-time from Yahoo `.info`.
+    Historical valuation (P/E, P/S, P/FCF) uses quarter-end price ÷ TTM (sum of
+    last 4 quarters). Forward P/E, PEG, EV/EBITDA are point-in-time from Yahoo `.info`.
     """
     symbol = (ticker or "").strip().upper()
     if not symbol:
@@ -121,32 +131,46 @@ def get_key_ratio_trends(ticker: str) -> dict[str, Any]:
             "snapshot": {},
         }
 
-    revenue = _last_n(_to_float_series(_row_series(income, _REVENUE)))
-    net_income = _last_n(_to_float_series(_row_series(income, _NET_INCOME)))
-    operating_income = _last_n(_to_float_series(_row_series(income, _OPERATING_INCOME)))
-    eps = _last_n(_to_float_series(_row_series(income, _DILUTED_EPS)))
-    interest = _last_n(_to_float_series(_row_series(income, _INTEREST_EXP)))
+    # Full quarterly series (needed so TTM has 4 quarters of lookback)
+    revenue_full = _to_float_series(_row_series(income, _REVENUE))
+    net_income_full = _to_float_series(_row_series(income, _NET_INCOME))
+    operating_income_full = _to_float_series(_row_series(income, _OPERATING_INCOME))
+    eps_full = _to_float_series(_row_series(income, _DILUTED_EPS))
+    interest_full = _to_float_series(_row_series(income, _INTEREST_EXP))
 
-    equity = _last_n(_to_float_series(_row_series(balance, _EQUITY)))
-    assets = _last_n(_to_float_series(_row_series(balance, _TOTAL_ASSETS)))
-    debt = _last_n(_to_float_series(_row_series(balance, _TOTAL_DEBT)))
-    cash = _last_n(_to_float_series(_row_series(balance, _CASH)))
-    current_assets = _last_n(_to_float_series(_row_series(balance, _CURRENT_ASSETS)))
-    current_liab = _last_n(_to_float_series(_row_series(balance, _CURRENT_LIAB)))
-    inventory = _last_n(_to_float_series(_row_series(balance, _INVENTORY)))
+    equity_full = _to_float_series(_row_series(balance, _EQUITY))
+    assets_full = _to_float_series(_row_series(balance, _TOTAL_ASSETS))
+    debt_full = _to_float_series(_row_series(balance, _TOTAL_DEBT))
+    cash_full = _to_float_series(_row_series(balance, _CASH))
+    current_assets_full = _to_float_series(_row_series(balance, _CURRENT_ASSETS))
+    current_liab_full = _to_float_series(_row_series(balance, _CURRENT_LIAB))
+    inventory_full = _to_float_series(_row_series(balance, _INVENTORY))
+    shares_full = _to_float_series(_row_series(balance, _SHARES))
 
-    ocf = _last_n(_to_float_series(_row_series(cashflow, _OCF)))
-    capex = _to_float_series(_row_series(cashflow, _CAPEX))
-    fcf = pd.Series(dtype=float)
-    if not ocf.empty and not capex.empty:
-        aligned = pd.concat([ocf.rename("ocf"), capex.rename("capex")], axis=1).dropna()
-        fcf = aligned.apply(
+    ocf_full = _to_float_series(_row_series(cashflow, _OCF))
+    capex_full = _to_float_series(_row_series(cashflow, _CAPEX))
+    fcf_full = pd.Series(dtype=float)
+    if not ocf_full.empty and not capex_full.empty:
+        aligned = pd.concat([ocf_full.rename("ocf"), capex_full.rename("capex")], axis=1).dropna()
+        fcf_full = aligned.apply(
             lambda r: r["ocf"] + r["capex"] if r["capex"] < 0 else r["ocf"] - r["capex"],
             axis=1,
-        )
-        fcf = _last_n(fcf.sort_index())
-    elif not ocf.empty:
-        fcf = ocf.copy()
+        ).sort_index()
+    elif not ocf_full.empty:
+        fcf_full = ocf_full.copy()
+
+    # Display window (last N quarters) for non-TTM ratios
+    revenue = _last_n(revenue_full)
+    net_income = _last_n(net_income_full)
+    operating_income = _last_n(operating_income_full)
+    interest = _last_n(interest_full)
+    equity = _last_n(equity_full)
+    assets = _last_n(assets_full)
+    debt = _last_n(debt_full)
+    cash = _last_n(cash_full)
+    current_assets = _last_n(current_assets_full)
+    current_liab = _last_n(current_liab_full)
+    inventory = _last_n(inventory_full)
 
     # Profitability
     roe = _safe_div(net_income, equity)
@@ -162,47 +186,43 @@ def get_key_ratio_trends(ticker: str) -> dict[str, Any]:
     current_ratio = _safe_div(current_assets, current_liab)
     quick_num = current_assets
     if not inventory.empty and not current_assets.empty:
-        quick_num = (current_assets - inventory.reindex(current_assets.index).fillna(0))
+        quick_num = current_assets - inventory.reindex(current_assets.index).fillna(0)
     quick_ratio = _safe_div(quick_num, current_liab)
 
     # Solvency
     debt_to_equity = _safe_div(debt, equity)
-    interest_coverage = _last_n(_interest_coverage(operating_income, interest))
+    interest_coverage = _last_n(_interest_coverage(operating_income_full, interest_full))
 
-    # Valuation from prices
-    all_idx = revenue.index.union(eps.index).union(fcf.index)
-    prices = _quarter_end_prices(t, all_idx)
-    # Annualize quarterly EPS for P/E (×4) — labeled as such in UI
+    # Valuation: quarter-end price / TTM fundamentals
+    ttm_eps = _ttm_sum(eps_full)
+    ttm_revenue = _ttm_sum(revenue_full)
+    ttm_fcf = _ttm_sum(fcf_full)
+    price_idx = ttm_eps.index.union(ttm_revenue.index).union(ttm_fcf.index).union(shares_full.index)
+    prices = _quarter_end_prices(t, price_idx)
+
     pe = pd.Series(dtype=float)
-    if not prices.empty and not eps.empty:
-        aligned = pd.concat([prices.rename("p"), eps.rename("e")], axis=1).dropna()
+    if not prices.empty and not ttm_eps.empty:
+        aligned = pd.concat([prices.rename("p"), ttm_eps.rename("e")], axis=1).dropna()
         aligned = aligned.loc[aligned["e"] > 0]
-        pe = (aligned["p"] / (aligned["e"] * 4)).sort_index()
-        pe = _last_n(pe)
+        pe = _last_n((aligned["p"] / aligned["e"]).sort_index())
 
     ps = pd.Series(dtype=float)
-    if not prices.empty and not revenue.empty:
-        # Prefer shares from balance sheet for market cap; else skip P/S level from price alone
-        shares = _last_n(_to_float_series(_row_series(balance, _SHARES)))
-        if not shares.empty:
-            aligned = pd.concat(
-                [prices.rename("p"), shares.rename("s"), revenue.rename("r")], axis=1
-            ).dropna()
-            aligned = aligned.loc[(aligned["s"] > 0) & (aligned["r"] > 0)]
-            # Annualize quarterly revenue
-            ps = (aligned["p"] * aligned["s"] / (aligned["r"] * 4)).sort_index()
-            ps = _last_n(ps)
+    if not prices.empty and not ttm_revenue.empty and not shares_full.empty:
+        aligned = pd.concat(
+            [prices.rename("p"), shares_full.rename("s"), ttm_revenue.rename("r")],
+            axis=1,
+        ).dropna()
+        aligned = aligned.loc[(aligned["s"] > 0) & (aligned["r"] > 0)]
+        ps = _last_n((aligned["p"] * aligned["s"] / aligned["r"]).sort_index())
 
     price_fcf = pd.Series(dtype=float)
-    if not prices.empty and not fcf.empty:
-        shares = _last_n(_to_float_series(_row_series(balance, _SHARES)))
-        if not shares.empty:
-            aligned = pd.concat(
-                [prices.rename("p"), shares.rename("s"), fcf.rename("f")], axis=1
-            ).dropna()
-            aligned = aligned.loc[(aligned["s"] > 0) & (aligned["f"] > 0)]
-            price_fcf = (aligned["p"] * aligned["s"] / (aligned["f"] * 4)).sort_index()
-            price_fcf = _last_n(price_fcf)
+    if not prices.empty and not ttm_fcf.empty and not shares_full.empty:
+        aligned = pd.concat(
+            [prices.rename("p"), shares_full.rename("s"), ttm_fcf.rename("f")],
+            axis=1,
+        ).dropna()
+        aligned = aligned.loc[(aligned["s"] > 0) & (aligned["f"] > 0)]
+        price_fcf = _last_n((aligned["p"] * aligned["s"] / aligned["f"]).sort_index())
 
     series = {
         "roe": _last_n(roe),
@@ -244,7 +264,10 @@ def get_key_ratio_trends(ticker: str) -> dict[str, Any]:
         "series": series,
         "snapshot": snapshot,
         "notes": {
-            "pe": "Historical P/E uses quarter-end price / (quarterly EPS × 4).",
+            "pe": (
+                "Historical P/E = quarter-end close ÷ TTM diluted EPS "
+                "(sum of that quarter + prior 3 quarters)."
+            ),
             "roic": "ROIC approx. operating income × (1 − 21%) / (equity + debt − cash).",
         },
     }

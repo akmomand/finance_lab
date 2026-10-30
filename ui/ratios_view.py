@@ -154,13 +154,14 @@ def render_key_ratio_trends(st, ticker: str) -> None:
             st,
             series,
             [
-                ("pe", "P/E (ann. EPS)", False),
-                ("price_to_sales", "Price / Sales", False),
-                ("price_to_fcf", "Price / FCF", False),
+                ("pe", "P/E (TTM)", False),
+                ("price_to_sales", "Price / Sales (TTM)", False),
+                ("price_to_fcf", "Price / FCF (TTM)", False),
             ],
         )
         if notes.get("pe"):
             st.caption(notes["pe"])
         st.caption(
-            "Forward P/E, PEG, and EV/EBITDA are current Yahoo snapshots (no free quarterly history)."
+            "P/S and P/FCF also use TTM (sum of last 4 quarters) with quarter-end price × shares. "
+            "Forward P/E, PEG, and EV/EBITDA are current Yahoo snapshots only."
         )
