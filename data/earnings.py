@@ -10,6 +10,8 @@ from data.cache import TTL_MEDIUM, cached_data
 from data.company import get_ticker, _safe_float
 
 QUARTER_COUNT = 8
+# Yahoo earnings_dates often has years of history — pull enough for charts
+EARNINGS_DATES_LIMIT = 24
 
 
 def _from_earnings_dates(ticker_obj) -> pd.DataFrame:
@@ -17,7 +19,7 @@ def _from_earnings_dates(ticker_obj) -> pd.DataFrame:
     df = None
     try:
         if hasattr(ticker_obj, "get_earnings_dates"):
-            df = ticker_obj.get_earnings_dates(limit=QUARTER_COUNT + 4)
+            df = ticker_obj.get_earnings_dates(limit=EARNINGS_DATES_LIMIT)
         if (df is None or df.empty) and hasattr(ticker_obj, "earnings_dates"):
             df = ticker_obj.earnings_dates
     except Exception:

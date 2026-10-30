@@ -94,13 +94,112 @@ def _ttm_sum(series: pd.Series) -> pd.Series:
     return s.rolling(window=4, min_periods=4).sum().dropna()
 
 
+def _prior_calendar_quarter_end(dt: pd.Timestamp) -> pd.Timestamp:
+    """Most recent Mar 31 / Jun 30 / Sep 30 / Dec 31 strictly before ``dt``."""
+    dt = pd.Timestamp(dt).tz_localize(None).normalize()
+    ends: list[pd.Timestamp] = []
+    for year in (dt.year, dt.year - 1):
+        for month, day in ((3, 31), (6, 30), (9, 30), (12, 31)):
+            qe = pd.Timestamp(year=year, month=month, day=day)
+            if qe < dt:
+                ends.append(qe)
+    return max(ends) if ends else dt
+
+
+def _reported_eps_from_earnings_dates(ticker_obj, limit: int = 24) -> pd.Series:
+    """
+    Long Reported EPS history from yfinance earnings_dates (often years).
+
+    Index = earnings announcement timestamps (tz-naive), values = Reported EPS.
+    Skips future rows where Reported EPS is still NaN.
+    """
+    df = None
+    try:
+        if hasattr(ticker_obj, "get_earnings_dates"):
+            df = ticker_obj.get_earnings_dates(limit=limit)
+        if (df is None or getattr(df, "empty", True)) and hasattr(ticker_obj, "earnings_dates"):
+            df = ticker_obj.earnings_dates
+    except Exception:
+        return pd.Series(dtype=float)
+
+    if df is None or getattr(df, "empty", True):
+        return pd.Series(dtype=float)
+
+    reported_col = None
+    for c in df.columns:
+        cl = str(c).lower()
+        if "reported" in cl and "eps" in cl:
+            reported_col = c
+            break
+    if reported_col is None:
+        for c in df.columns:
+            cl = str(c).lower()
+            if cl in ("reported eps", "eps actual", "actual"):
+                reported_col = c
+                break
+    if reported_col is None:
+        return pd.Series(dtype=float)
+
+    out = df[reported_col].map(_safe_float).dropna()
+    out.index = pd.to_datetime(out.index, utc=True).tz_localize(None)
+    out = out.sort_index()
+    # Drop duplicate announcement dates (keep last)
+    out = out[~out.index.duplicated(keep="last")]
+    return out
+
+
+def _pe_ttm_from_reported_eps(
+    ticker_obj,
+    reported_eps: pd.Series,
+    display_n: int = 12,
+) -> pd.Series:
+    """
+    P/E = prior calendar quarter-end close ÷ TTM Reported EPS
+    (sum of current + prior 3 reported quarters from earnings_dates).
+
+    Series indexed by that quarter-end date for chart labels.
+    """
+    if reported_eps is None or len(reported_eps.dropna()) < 4:
+        return pd.Series(dtype=float)
+
+    eps = reported_eps.dropna().sort_index()
+    ttm = _ttm_sum(eps)
+    if ttm.empty:
+        return pd.Series(dtype=float)
+
+    # Map each TTM point (keyed by announcement date) → fiscal quarter-end for price
+    qe_dates = [_prior_calendar_quarter_end(d) for d in ttm.index]
+    prices = _quarter_end_prices(ticker_obj, pd.DatetimeIndex(qe_dates))
+    if prices.empty:
+        return pd.Series(dtype=float)
+
+    pe_by_qe: dict[pd.Timestamp, float] = {}
+    for ann_dt, ttm_eps in ttm.items():
+        if ttm_eps is None or ttm_eps <= 0:
+            continue
+        qe = _prior_calendar_quarter_end(ann_dt)
+        # nearest available close on/before quarter-end
+        prior = prices.loc[:qe] if qe in prices.index or True else prices
+        prior = prices.loc[:qe]
+        if prior.empty:
+            continue
+        px = float(prior.iloc[-1])
+        pe_by_qe[qe] = px / float(ttm_eps)
+
+    if not pe_by_qe:
+        return pd.Series(dtype=float)
+    pe = pd.Series(pe_by_qe).sort_index()
+    return pe.tail(display_n)
+
+
 @cached_data(ttl=TTL_MEDIUM)
 def get_key_ratio_trends(ticker: str) -> dict[str, Any]:
     """
     Build up to 8 quarters of key ratios + a current valuation snapshot.
 
-    Historical valuation (P/E, P/S, P/FCF) uses quarter-end price ÷ TTM (sum of
-    last 4 quarters). Forward P/E, PEG, EV/EBITDA are point-in-time from Yahoo `.info`.
+    Historical P/E uses earnings_dates Reported EPS (long history) with
+    quarter-end prices. P/S and P/FCF still use statement TTM when available.
+    Forward P/E, PEG, EV/EBITDA are point-in-time from Yahoo `.info`.
     """
     symbol = (ticker or "").strip().upper()
     if not symbol:
@@ -193,18 +292,23 @@ def get_key_ratio_trends(ticker: str) -> dict[str, Any]:
     debt_to_equity = _safe_div(debt, equity)
     interest_coverage = _last_n(_interest_coverage(operating_income_full, interest_full))
 
-    # Valuation: quarter-end price / TTM fundamentals
-    ttm_eps = _ttm_sum(eps_full)
+    # P/E from earnings_dates Reported EPS (years of history) + quarter-end price
+    reported_eps = _reported_eps_from_earnings_dates(t, limit=24)
+    pe = _pe_ttm_from_reported_eps(t, reported_eps, display_n=12)
+    # Fallback: short statement diluted EPS if earnings_dates missing
+    if pe.empty and not eps_full.empty:
+        ttm_eps = _ttm_sum(eps_full)
+        prices_fb = _quarter_end_prices(t, ttm_eps.index)
+        if not prices_fb.empty and not ttm_eps.empty:
+            aligned = pd.concat([prices_fb.rename("p"), ttm_eps.rename("e")], axis=1).dropna()
+            aligned = aligned.loc[aligned["e"] > 0]
+            pe = _last_n((aligned["p"] / aligned["e"]).sort_index())
+
+    # P/S and P/FCF still from quarterly statements (shorter Yahoo window)
     ttm_revenue = _ttm_sum(revenue_full)
     ttm_fcf = _ttm_sum(fcf_full)
-    price_idx = ttm_eps.index.union(ttm_revenue.index).union(ttm_fcf.index).union(shares_full.index)
+    price_idx = ttm_revenue.index.union(ttm_fcf.index).union(shares_full.index)
     prices = _quarter_end_prices(t, price_idx)
-
-    pe = pd.Series(dtype=float)
-    if not prices.empty and not ttm_eps.empty:
-        aligned = pd.concat([prices.rename("p"), ttm_eps.rename("e")], axis=1).dropna()
-        aligned = aligned.loc[aligned["e"] > 0]
-        pe = _last_n((aligned["p"] / aligned["e"]).sort_index())
 
     ps = pd.Series(dtype=float)
     if not prices.empty and not ttm_revenue.empty and not shares_full.empty:
@@ -265,8 +369,9 @@ def get_key_ratio_trends(ticker: str) -> dict[str, Any]:
         "snapshot": snapshot,
         "notes": {
             "pe": (
-                "Historical P/E = quarter-end close ÷ TTM diluted EPS "
-                "(sum of that quarter + prior 3 quarters)."
+                "Historical P/E = prior calendar quarter-end close ÷ TTM Reported EPS "
+                "from Yahoo earnings_dates (sum of that print + prior 3 reported quarters). "
+                "Shows up to 12 points when history allows."
             ),
             "roic": "ROIC approx. operating income × (1 − 21%) / (equity + debt − cash).",
         },

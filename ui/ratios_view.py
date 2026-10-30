@@ -162,6 +162,6 @@ def render_key_ratio_trends(st, ticker: str) -> None:
         if notes.get("pe"):
             st.caption(notes["pe"])
         st.caption(
-            "P/S and P/FCF also use TTM (sum of last 4 quarters) with quarter-end price × shares. "
+            "P/S and P/FCF still use quarterly statements (Yahoo often only returns ~5 periods). "
             "Forward P/E, PEG, and EV/EBITDA are current Yahoo snapshots only."
         )
